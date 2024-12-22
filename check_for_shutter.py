@@ -7,26 +7,49 @@ endpoint = "http://10.0.0.1:10000/sony/camera"
 # Track the last camera status to detect changes
 last_camera_status = None
 
+def extract_urls(data):
+    """
+    Recursively extracts all URLs (strings containing 'http') from the data.
+    Returns a list of URLs.
+    """
+    urls = []
+    if isinstance(data, str):
+        if "http" in data:
+            urls.append(data)
+    elif isinstance(data, list):
+        for item in data:
+            urls.extend(extract_urls(item))
+    elif isinstance(data, dict):
+        for value in data.values():
+            urls.extend(extract_urls(value))
+    return urls
+
 def poll_events():
     global last_camera_status
 
     payload = {
         "method": "getEvent",
-        "params": [False],  # Set to True if you want initial settings too
+        "params": [False],  # Poll for events
         "id": 1,
         "version": "1.0"
     }
 
+    print("Listening for shutter events...")
     while True:
         try:
             response = requests.post(endpoint, json=payload)
             if response.status_code == 200:
                 events = response.json()
 
-                # Iterate over the "result" field safely
+                # Extract and print URLs from events
                 for event in events.get("result", []):
-                    if isinstance(event, dict):  # Process dictionaries only
-                        # Check for cameraStatus changes
+                    urls = extract_urls(event)
+                    for url in urls:
+                        print(f"URL found: {url}")
+
+                # Check for cameraStatus changes (optional, can be removed if unnecessary)
+                for event in events.get("result", []):
+                    if isinstance(event, dict):
                         if event.get("type") == "cameraStatus":
                             current_status = event.get("cameraStatus")
 
@@ -38,20 +61,11 @@ def poll_events():
                                     print("Capture completed.")
                                 last_camera_status = current_status
 
-                        # Check for takePicture URL
-                        if event.get("type") == "takePicture" and event.get("takePictureUrl"):
-                            picture_url = event["takePictureUrl"][0]
-                            print(f"Picture available at: {picture_url}")
-
-            else:
-                print(f"Error: {response.status_code} - {response.text}")
-
         except Exception as e:
             print(f"Error polling events: {e}")
 
-        # Poll every 0.1 seconds
-        time.sleep(0.1)
+        # Poll every 0.5 seconds
+        time.sleep(0.5)
 
 if __name__ == "__main__":
-    print("Listening for shutter events...")
     poll_events()
