@@ -1,11 +1,11 @@
+import base64
 import os
-
 import requests
 import time
+from openai import OpenAI
+from dotenv import load_dotenv
 
 endpoint = "http://10.0.0.1:10000/sony/camera"
-
-last_camera_status = None
 
 def extract_urls(data):
     """
@@ -25,8 +25,9 @@ def extract_urls(data):
     return urls
 
 def get_photo_from_camera():
-    global last_camera_status
-
+    """
+    Polls the camera for shutter events and returns the first URL found.
+    """
     payload = {
         "method": "getEvent",
         "params": [False],
@@ -34,7 +35,7 @@ def get_photo_from_camera():
         "version": "1.0"
     }
 
-    print("Listening for shutter events...")
+    print("ready for photography...")
     while True:
         try:
             response = requests.post(endpoint, json=payload)
@@ -43,15 +44,14 @@ def get_photo_from_camera():
 
                 for event in events.get("result", []):
                     urls = extract_urls(event)
-                    for url in urls:
-                        print(f"URL found: {url}")
-                        save_image(url)
+                    if urls:
+                        print(f"URL found: {urls[0]}")
+                        return urls[0]
 
         except Exception as e:
             print(f"Error polling events: {e}")
 
         time.sleep(0.5)
-
 
 def save_image(url: str):
     """
@@ -61,17 +61,50 @@ def save_image(url: str):
         response = requests.get(url, stream=True)
         if response.status_code == 200:
             save_directory = "img"
+            os.makedirs(save_directory, exist_ok=True)
             filename = os.path.join(save_directory, os.path.basename(url.split('?')[0]) or "downloaded_image.jpg")
 
             with open(filename, 'wb') as image_file:
                 image_file.write(response.content)
 
             print(f"Image saved as: {filename}")
+            return filename
         else:
             print(f"Failed to download image. Status code: {response.status_code}")
     except Exception as e:
         print(f"Error saving image: {e}")
 
 
+def send_to_openai(path: str):
+    client = OpenAI(api_key = os.getenv("OPENAI_API_KEY"))
+    with open(path, "rb") as image_file:
+        encoded_img = base64.b64encode(image_file.read()).decode("utf-8")
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "What is in this image?",
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{encoded_img}"},
+                        },
+                    ],
+                }
+            ],
+        )
+    print(f"{response.choices[0].message.content}")
+    return response.choices[0].message.content
+
 if __name__ == "__main__":
-    get_photo_from_camera()
+    load_dotenv()
+    url = get_photo_from_camera()
+    if url:
+        path = save_image(url)
+        input("Switch the wifi and press a key to proceed.")
+        print(f"proceeding with image: {path}")
+        send_to_openai(path)
