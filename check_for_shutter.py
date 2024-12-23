@@ -1,10 +1,10 @@
+import os
+
 import requests
 import time
 
-# Base URL for the API
 endpoint = "http://10.0.0.1:10000/sony/camera"
 
-# Track the last camera status to detect changes
 last_camera_status = None
 
 def extract_urls(data):
@@ -29,7 +29,7 @@ def poll_events():
 
     payload = {
         "method": "getEvent",
-        "params": [False],  # Poll for events
+        "params": [False],
         "id": 1,
         "version": "1.0"
     }
@@ -41,31 +41,38 @@ def poll_events():
             if response.status_code == 200:
                 events = response.json()
 
-                # Extract and print URLs from events
                 for event in events.get("result", []):
                     urls = extract_urls(event)
                     for url in urls:
                         print(f"URL found: {url}")
-
-                # Check for cameraStatus changes (optional, can be removed if unnecessary)
-                for event in events.get("result", []):
-                    if isinstance(event, dict):
-                        if event.get("type") == "cameraStatus":
-                            current_status = event.get("cameraStatus")
-
-                            # Detect status changes
-                            if current_status != last_camera_status:
-                                if current_status == "StillCapturing":
-                                    print("Shutter pressed! Capturing...")
-                                elif current_status == "IDLE" and last_camera_status == "StillCapturing":
-                                    print("Capture completed.")
-                                last_camera_status = current_status
+                        save_image(url)
 
         except Exception as e:
             print(f"Error polling events: {e}")
 
-        # Poll every 0.5 seconds
         time.sleep(0.5)
+
+
+def save_image(url: str):
+    """
+    Downloads the image from the given URL and saves it to a file.
+    """
+    try:
+        response = requests.get(url, stream=True)
+        if response.status_code == 200:
+            # Generate a unique filename using the URL
+            filename = os.path.basename(url.split('?')[0]) or "downloaded_image.jpg"
+
+            # Save the content to a file
+            with open(filename, 'wb') as image_file:
+                image_file.write(response.content)
+
+            print(f"Image saved as: {filename}")
+        else:
+            print(f"Failed to download image. Status code: {response.status_code}")
+    except Exception as e:
+        print(f"Error saving image: {e}")
+
 
 if __name__ == "__main__":
     poll_events()
