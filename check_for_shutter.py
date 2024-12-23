@@ -60,10 +60,9 @@ def save_image(url: str):
     try:
         response = requests.get(url, stream=True)
         if response.status_code == 200:
-            # Generate a unique filename using the URL
-            filename = os.path.basename(url.split('?')[0]) or "downloaded_image.jpg"
+            save_directory = "img"
+            filename = os.path.join(save_directory, os.path.basename(url.split('?')[0]) or "downloaded_image.jpg")
 
-            # Save the content to a file
             with open(filename, 'wb') as image_file:
                 image_file.write(response.content)
 
