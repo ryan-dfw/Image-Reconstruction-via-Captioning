@@ -87,7 +87,7 @@ def send_to_openai(path: str):
                     "content": [
                         {
                             "type": "text",
-                            "text": "What is in this image?",
+                            "text": "Describe the image in detail.",
                         },
                         {
                             "type": "image_url",
@@ -100,6 +100,20 @@ def send_to_openai(path: str):
     print(f"{response.choices[0].message.content}")
     return response.choices[0].message.content
 
+
+def send_to_dalle(caption):
+    client = OpenAI(api_key = os.getenv("OPENAI_API_KEY"))
+    response = client.images.generate(
+        model="dall-e-3",
+        prompt="In a photorealistic style: " + caption,
+        size="1024x1024",
+        quality="standard",
+        n=1,
+    )
+    print(response.data[0].url)
+    return response.data[0].url
+
+
 if __name__ == "__main__":
     load_dotenv()
     url = get_photo_from_camera()
@@ -107,4 +121,5 @@ if __name__ == "__main__":
         path = save_image(url)
         input("Switch the wifi and press a key to proceed.")
         print(f"proceeding with image: {path}")
-        send_to_openai(path)
+        caption = send_to_openai(path)
+        image = send_to_dalle(caption)
