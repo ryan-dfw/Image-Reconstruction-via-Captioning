@@ -28,6 +28,12 @@ cd Image-Reconstruction-via-Captioning
 pip install -r requirements.txt
 ```
 
+3. Create a `.env` file at the base of the project directory. The contents of the file should be as follows, where the value of OPENAI_API_KEY is a secret key obtained from OpenAI.
+
+```txt
+OPENAI_API_KEY="INSERT KEY HERE"
+```
+
 ## Usage
 
 > This program requires having a camera compatible with Sony's Camera Remote API.
