@@ -4,6 +4,7 @@ import requests
 import time
 from openai import OpenAI
 from dotenv import load_dotenv
+import time
 
 endpoint = "http://10.0.0.1:10000/sony/camera"
 
@@ -87,7 +88,7 @@ def send_to_openai(path: str):
                     "content": [
                         {
                             "type": "text",
-                            "text": "Describe the image in detail.",
+                            "text": "Describe the image in detail. If there are people in the image, describe their appearance, facial expression, and pose (if visible). Make note of the image's composition. If the facial expression or pose is extreme, feel free to describe it as such.",
                         },
                         {
                             "type": "image_url",
@@ -97,7 +98,12 @@ def send_to_openai(path: str):
                 }
             ],
         )
-    print(f"{response.choices[0].message.content}")
+
+    caption_filename = os.path.join("captions", f"caption_{time.time()}")
+    with open(caption_filename, "w") as f:
+        f.write(response.choices[0].message.content)
+
+    print(f"caption generated")
     return response.choices[0].message.content
 
 
