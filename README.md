@@ -2,11 +2,7 @@
 
 ## Overview
 
-This program utilizes Sony's Camera Remote API to interact with any compatible camera,
-intercepting captured images, processing them through a pipeline of image-to-text
-and text-to-image models, generating a reconstructed image.
-The result is an image conceptually related to the original, interpreted through the lens
-of two language-based AI models.
+This program utilizes Sony's Camera Remote API to interact with any compatible camera, intercepting captured images, processing them through a pipeline of image-to-text and text-to-image models, generating a reconstructed image. The result is an image conceptually related to the original, interpreted through the lens of two language-based AI models.
 
 ## Features
 
