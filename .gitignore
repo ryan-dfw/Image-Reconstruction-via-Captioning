@@ -4,3 +4,5 @@ BLIP/
 .idea/
 .env
 captions/
+.idea
+.venv
