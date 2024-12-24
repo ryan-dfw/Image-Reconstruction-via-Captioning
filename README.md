@@ -46,7 +46,7 @@ pip install -r requirements.txt
 
 ## Results
 
-<div style="display: flex; justify-content: center; align-items: center;">
+<div style="display: flex; justify-content: center; align-items: center; align=center">
   <img src="img/sample_in.jpg" height=250px alt="a poorly taken photo of a pet dog" style="margin-right: 10px;">
   <img src="img/sample_out.png" height=250px alt="a generated image of a pet dog">
 </div>
