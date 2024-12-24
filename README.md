@@ -34,7 +34,7 @@ pip install -r requirements.txt
 
 ## Usage
 
-> This program requires the having of a Sony Camera; kindly have one.
+> This program requires having a camera compatible with Sony's Camera Remote API.
 
 1. Find your camera's SSID & password - in the case of most Sony Alphas, this is obtainable by navigating in the menu under networking. For cameras without a screen, such as the QX-10, the SSID & PW are printed somewhere such as inside the door of the battery compartment.
 2. Connect via Wi-Fi to your camera.
@@ -53,4 +53,4 @@ pip install -r requirements.txt
 
 **Caption used to generate image:**
 
-> ...
+> The image features a dog, likely a Boston Terrier, resting on a blanket. The dog has a distinctive black and white coat, with a white patch on its face that contrasts with the darker fur. Its ears are large and upright, adding to its alert appearance. The dog's expression is curious and slightly inquisitive, gazing toward the camera with its big, round eyes. The eyes are dark and expressive, conveying a sense of personality. Its mouth is closed, which gives it a calm demeanor.In terms of pose, the dog is lying down, with one foreleg visible, slightly extended. The body language suggests relaxation, yet the attentive position of the ears indicates that it is aware of its surroundings. The background features a plain wall, while the dog is resting on a colorful blanket with a soft, patterned design featuring blue and green elements. The image has a warm, cozy feel, emphasizing the intimate setting. The focus appears somewhat soft, but the subject (the dog) remains the central point of interest.
