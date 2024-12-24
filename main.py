@@ -1,7 +1,6 @@
 import base64
 import os
 import requests
-import time
 from openai import OpenAI
 from dotenv import load_dotenv
 import time

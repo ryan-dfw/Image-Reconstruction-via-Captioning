@@ -3,5 +3,4 @@ BLIP/
 .conda/
 .idea/
 .env
-*.JPG
 captions/
