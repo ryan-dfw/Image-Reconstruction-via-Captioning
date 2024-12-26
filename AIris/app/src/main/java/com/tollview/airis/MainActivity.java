@@ -16,7 +16,6 @@ import java.io.OutputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.Iterator;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -39,7 +38,6 @@ public class MainActivity extends AppCompatActivity {
 
     private void pollForPhotoUrls() {
         try {
-            // Payload for getEvent API
             String payload = """
             {
                 "method": "getEvent",
@@ -48,14 +46,9 @@ public class MainActivity extends AppCompatActivity {
                 "version": "1.0"
             }
             """;
-
-            // Log that the app is ready for photography
             appendToTextView("Ready for photography...");
 
             while (true) {
-                // Log polling attempt
-                appendToTextView("...");
-
                 // Connect to the camera API
                 HttpURLConnection connection = (HttpURLConnection) new URL(CAMERA_ENDPOINT).openConnection();
                 connection.setRequestMethod("POST");
@@ -78,31 +71,33 @@ public class MainActivity extends AppCompatActivity {
                         }
                     }
 
-                    // Log the raw response
-                    appendToTextView("Raw response: " + response.toString());
-
-                    // Parse response to find photo URLs
+                    // Parse JSON and extract takePictureUrl
                     JSONObject jsonResponse = new JSONObject(response.toString());
                     JSONArray resultArray = jsonResponse.optJSONArray("result");
-                    if (resultArray != null) {
-                        for (int i = 0; i < resultArray.length(); i++) {
-                            JSONObject event = resultArray.optJSONObject(i);
-                            if (event != null) {
-                                String url = extractPhotoUrl(event);
-                                if (url != null) {
-                                    // Log shutter pressed
-                                    appendToTextView("Shutter pressed!");
-
-                                    // Log photo URL
-                                    appendToTextView("Photo URL: " + url);
-
-                                    // Log capture finished
-                                    appendToTextView("Capture finished.");
-
-                                    return; // Exit after finding the first URL
+                    if (resultArray != null && resultArray.length() > 5) {
+                        JSONArray takePictureArray = resultArray.optJSONArray(5); // Access index [5]
+                        if (takePictureArray != null && takePictureArray.length() > 0) {
+                            JSONObject takePictureObject = takePictureArray.optJSONObject(0); // Access index [0]
+                            if (takePictureObject != null) {
+                                JSONArray takePictureUrls = takePictureObject.optJSONArray("takePictureUrl");
+                                if (takePictureUrls != null) {
+                                    for (int i = 0; i < takePictureUrls.length(); i++) {
+                                        String url = takePictureUrls.optString(i);
+                                        if (url != null && !url.isEmpty()) {
+                                            appendToTextView("Photo URL: " + url);
+                                        }
+                                    }
+                                } else {
+                                    appendToTextView("nothing"); // takePictureUrl key missing
                                 }
+                            } else {
+                                appendToTextView("nothing"); // Object at [5][0] missing
                             }
+                        } else {
+                            appendToTextView("nothing"); // Array at [5] missing or empty
                         }
+                    } else {
+                        appendToTextView("nothing"); // Index [5] not in result
                     }
                 }
 
@@ -119,49 +114,5 @@ public class MainActivity extends AppCompatActivity {
             String currentText = logTextView.getText().toString();
             logTextView.setText(currentText + "\n" + message);
         });
-    }
-
-    private String extractPhotoUrl(JSONObject jsonObject) {
-        try {
-            Iterator<String> keys = jsonObject.keys();
-            while (keys.hasNext()) {
-                String key = keys.next();
-                Object value = jsonObject.get(key);
-
-                if (value instanceof String) {
-                    // Check if the value contains an HTTP URL
-                    String stringValue = (String) value;
-                    if (stringValue.contains("http")) {
-                        return stringValue;
-                    }
-                } else if (value instanceof JSONObject) {
-                    // Recursively search in nested JSONObject
-                    String url = extractPhotoUrl((JSONObject) value);
-                    if (url != null) {
-                        return url;
-                    }
-                } else if (value instanceof JSONArray) {
-                    // Recursively search in JSONArray
-                    JSONArray jsonArray = (JSONArray) value;
-                    for (int i = 0; i < jsonArray.length(); i++) {
-                        Object arrayValue = jsonArray.get(i);
-                        if (arrayValue instanceof JSONObject) {
-                            String url = extractPhotoUrl((JSONObject) arrayValue);
-                            if (url != null) {
-                                return url;
-                            }
-                        } else if (arrayValue instanceof String) {
-                            String stringValue = (String) arrayValue;
-                            if (stringValue.contains("http")) {
-                                return stringValue;
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (Exception e) {
-            appendToTextView("Error parsing JSON: " + e.getMessage());
-        }
-        return null;
     }
 }
