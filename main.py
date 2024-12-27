@@ -21,7 +21,7 @@ def extract_urls(data):
             urls.extend(extract_urls(item))
     elif isinstance(data, dict):
         for value in data.values():
-            urls.extend(extract_ur  ls(value))
+            urls.extend(extract_urls(value))
     return urls
 
 def get_photo_from_camera():
