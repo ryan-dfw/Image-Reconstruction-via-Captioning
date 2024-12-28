@@ -1,6 +1,8 @@
 package com.tollview.airis;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
@@ -9,6 +11,8 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Base64;
 import android.util.Log;
+import android.view.View;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
@@ -29,6 +33,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String CAMERA_ENDPOINT = "http://10.0.0.1:10000/sony/camera";
     private TextView logTextView;
+    private ImageView generatedImageView;
     private final Handler uiHandler = new Handler(Looper.getMainLooper());
     private String url = null;
     private static String destinationURL = null;
@@ -41,17 +46,17 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         logTextView = findViewById(R.id.logTextView);
+        generatedImageView = findViewById(R.id.generatedImageView);
 
         new Thread(() -> {
             String photoUrl = pollForPhotoUrls();
             if (photoUrl != null) {
                 String urlname = extractFilenameFromUrl(photoUrl);
                 if (urlname != null) {
-                    uiHandler.post(() -> appendToTextView("Extracted Filename: " + urlname));
+                    uiHandler.post(() -> System.out.println("Extracted Filename: " + urlname));
                 } else {
-                    uiHandler.post(() -> appendToTextView("Failed to extract filename."));
+                    uiHandler.post(() -> System.out.println("Failed to extract filename."));
                 }
-                appendToTextView("About to try");
                 System.out.println("About to try");
                 try {
                     InputStream inputStream = null;
@@ -76,9 +81,12 @@ public class MainActivity extends AppCompatActivity {
                         byte[] imageBytes = outputStream.toByteArray();
                         base64Image = Base64.encodeToString(imageBytes, Base64.NO_WRAP);
                         String caption = sendToOpenAI(base64Image);
+                        appendToTextView("Halfway there...");
                         String outputURL = sendToDalle(caption);
+                        if (outputURL != null) {
+                            displayImage(outputURL);
+                        }
                     } else {
-                        appendToTextView("THERE'S A PROBLEM");
                         System.out.println("THERE'S A PROBLEM");
                     }
 
@@ -89,6 +97,44 @@ public class MainActivity extends AppCompatActivity {
         }).start();
 
     }
+
+    private void displayImage(String imageUrl) {
+        new Thread(() -> {
+            ConnectivityManager connectivityManager =
+                    (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            Network cellularNetwork = null;
+
+            // Find the cellular network
+            for (Network network : connectivityManager.getAllNetworks()) {
+                NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(network);
+                if (capabilities != null && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) {
+                    cellularNetwork = network;
+                    break;
+                }
+            }
+
+            try {
+                URL url = new URL(imageUrl);
+                HttpURLConnection connection = (HttpURLConnection) cellularNetwork.openConnection(url);
+
+                connection.setDoInput(true);
+                connection.connect();
+
+                if (connection.getResponseCode() == HttpURLConnection.HTTP_OK) {
+                    InputStream inputStream = connection.getInputStream();
+                    Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
+
+                    runOnUiThread(() -> {
+                        generatedImageView.setImageBitmap(bitmap);
+                        generatedImageView.setVisibility(View.VISIBLE);
+                    });
+                }
+            } catch (Exception e) {
+                System.out.print("Failed to load image: " + e.getMessage());
+            }
+        }).start();
+    }
+
 
     private String sendToOpenAI(String base64Image) {
         ConnectivityManager connectivityManager =
@@ -105,11 +151,6 @@ public class MainActivity extends AppCompatActivity {
                     cellularNetwork = network;
                     break;
                 }
-            }
-
-            if (cellularNetwork == null) {
-                appendToTextView("No cellular network available.");
-                return null;
             }
 
             // Construct the JSON payload
@@ -133,11 +174,8 @@ public class MainActivity extends AppCompatActivity {
                     .put("role", "user")
                     .put("content", messagesArray)));
 
-            // Log the payload length (not the content)
-            appendToTextView("Request payload length: " + data.toString().length());
             Log.d("OpenAI", "Request payload length: " + data.toString().length());
 
-            // Force API call to use the cellular network
             URL openAIUrl = new URL("https://api.openai.com/v1/chat/completions");
             HttpURLConnection connection = (HttpURLConnection) cellularNetwork.openConnection(openAIUrl);
             connection.setRequestMethod("POST");
@@ -169,17 +207,12 @@ public class MainActivity extends AppCompatActivity {
                         JSONObject message = firstChoice.optJSONObject("message");
                         if (message != null) {
                             String caption = message.optString("content", "No caption provided.");
-                            // Save to variable and append to TextView
-                            appendToTextView("Caption: " + caption);
                             Log.d("OpenAI", "Caption: " + caption);
                             return caption;
                         }
                     }
-                } else {
-                    appendToTextView("API response missing valid choices or text content.");
                 }
             } else {
-                // Log error response details
                 StringBuilder errorResponse = new StringBuilder();
                 try (BufferedReader br = new BufferedReader(new InputStreamReader(connection.getErrorStream(), "utf-8"))) {
                     String line;
@@ -187,11 +220,9 @@ public class MainActivity extends AppCompatActivity {
                         errorResponse.append(line.trim());
                     }
                 }
-                appendToTextView("Error: HTTP " + responseCode + " - " + errorResponse.toString());
                 Log.e("OpenAI", "Error: HTTP " + responseCode + " - " + errorResponse.toString());
             }
         } catch (Exception e) {
-            appendToTextView("Error sending to OpenAI: " + e.getMessage());
             Log.e("OpenAI", "Error sending to OpenAI: ", e);
         }
         return null;
@@ -212,11 +243,6 @@ public class MainActivity extends AppCompatActivity {
                     cellularNetwork = network;
                     break;
                 }
-            }
-
-            if (cellularNetwork == null) {
-                appendToTextView("No cellular network available.");
-                return null;
             }
 
             // Construct the JSON payload
@@ -261,13 +287,11 @@ public class MainActivity extends AppCompatActivity {
                     if (firstImage != null) {
                         String imageUrl = firstImage.optString("url");
                         if (imageUrl != null && !imageUrl.isEmpty()) {
-                            appendToTextView("Generated Image URL: " + imageUrl);
                             Log.d("DALL-E", "Generated Image URL: " + imageUrl);
                             return imageUrl;
                         }
                     }
                 } else {
-                    appendToTextView("DALL-E response missing image data.");
                     Log.e("DALL-E", "Response missing image data: " + response.toString());
                 }
             } else {
@@ -279,11 +303,9 @@ public class MainActivity extends AppCompatActivity {
                         errorResponse.append(line.trim());
                     }
                 }
-                appendToTextView("Error: HTTP " + responseCode + " - " + errorResponse.toString());
                 Log.e("DALL-E", "Error: HTTP " + responseCode + " - " + errorResponse.toString());
             }
         } catch (Exception e) {
-            appendToTextView("Error sending to DALL-E: " + e.getMessage());
             Log.e("DALL-E", "Error sending to DALL-E: ", e);
         }
         return null;
@@ -301,7 +323,7 @@ public class MainActivity extends AppCompatActivity {
                 return parts[parts.length - 1];
             }
         } catch (Exception e) {
-            appendToTextView("Error extracting filename: " + e.getMessage());
+            System.out.print("Error extracting filename: " + e.getMessage());
         }
         return null;
     }
@@ -357,28 +379,19 @@ public class MainActivity extends AppCompatActivity {
                                         String foundUrl = takePictureUrls.optString(i);
                                         if (foundUrl != null && !foundUrl.isEmpty()) {
                                             url = foundUrl;
-                                            appendToTextView("Photo URL: " + url);
+                                            appendToTextView("Processing started...");
                                             return url;
                                         }
                                     }
-                                } else {
-                                    appendToTextView("nothing");
                                 }
-                            } else {
-                                appendToTextView("nothing");
                             }
-                        } else {
-                            appendToTextView("nothing");
                         }
-                    } else {
-                        appendToTextView("nothing");
                     }
                 }
-
                 Thread.sleep(500);
             }
         } catch (Exception e) {
-            appendToTextView("Error polling for photo: " + e.getMessage());
+            System.out.print("Error polling for photo: " + e.getMessage());
         }
         return null;
     }
