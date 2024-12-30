@@ -88,3 +88,5 @@ cd Image-Reconstruction-via-Captioning
 5. Take a photo.
 6. Simply be patient - it takes a bit, but the Android app handles all the networks itself!
 7. Enjoy your image! You may want to screenshot it, as we've not implemented a better solution just yet.
+
+Image Reconstruction via Captioning © 2024 by Ryan McKevitt & Eric McKevitt is licensed under CC BY-NC-SA 4.0 
