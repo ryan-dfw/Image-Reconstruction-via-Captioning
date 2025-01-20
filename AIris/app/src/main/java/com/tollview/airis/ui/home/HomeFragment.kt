@@ -1,8 +1,9 @@
 package com.tollview.airis.ui.home
 
+import android.content.ContentValues
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
+import android.os.Environment
+import android.provider.MediaStore
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -11,12 +12,22 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import com.tollview.airis.databinding.FragmentHomeBinding
+import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStream
+import java.io.InputStreamReader
+import java.io.OutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 
 class HomeFragment : Fragment() {
 
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
     private lateinit var homeViewModel: HomeViewModel
+
+    private val CAMERA_ENDPOINT = "http://10.0.0.1:10000/sony/camera"
+    private var photoUrl: String? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -31,51 +42,123 @@ class HomeFragment : Fragment() {
 
         homeViewModel = ViewModelProvider(this).get(HomeViewModel::class.java)
 
-        // Observe LiveData and update the readout text when it changes
-        homeViewModel.statusMessage.observe(viewLifecycleOwner) { message ->
-            binding.readout.alpha = 0f  // Set initial transparency
-            binding.readout.text = message
-            binding.readout.animate().alpha(1f).setDuration(500).start() // Apply fade-in effect
-        }
+        observeViewModel()
+        buildViews()
 
-        // Ensure layout calculations happen after the view is laid out
+        readout("Ready to capture!")
+
+        Thread { pollForPhotoUrls() }.start()
+    }
+
+    private fun observeViewModel() {
+        homeViewModel.statusMessage.observe(viewLifecycleOwner) { message ->
+            binding.readout.alpha = 0f
+            binding.readout.text = message
+            binding.readout.animate().alpha(1f).setDuration(500).start()
+        }
+    }
+
+    private fun buildViews() {
         binding.root.post {
             val insets = ViewCompat.getRootWindowInsets(binding.root)
                 ?.getInsets(WindowInsetsCompat.Type.systemBars()) ?: return@post
 
-            // Calculate active area height (excluding system bars)
             val activeAreaHeight = binding.root.height - (insets.top + insets.bottom)
-
-            // Get the screen width for a 1:1 viewer size
             val screenWidth = binding.root.width
 
-            // Set viewer dimensions to be a square
             binding.viewer.layoutParams.apply {
                 width = screenWidth
                 height = screenWidth
             }
 
-            // Calculate and divide remaining space for readout and controls
             val remainingHeight = activeAreaHeight - screenWidth
             val splitHeight = remainingHeight / 2
 
             binding.readout.layoutParams.height = splitHeight
             binding.controls.layoutParams.height = splitHeight
 
-            // Force layout updates
             binding.readout.requestLayout()
             binding.viewer.requestLayout()
             binding.controls.requestLayout()
+        }
+    }
 
-            // Log for debugging
-            android.util.Log.d("HomeFragment", "Readout height: $splitHeight, Viewer size: $screenWidth")
+    private fun readout(message: String) {
+        requireActivity().runOnUiThread {
+            homeViewModel.setStatus(message)
+        }
+    }
 
-            homeViewModel.setStatus("Ready to capture!")
+    private fun pollForPhotoUrls() {
+        while (true) {
+            try {
+                val payload = """
+                {
+                    "method": "getEvent",
+                    "params": [false],
+                    "id": 1,
+                    "version": "1.0"
+                }
+                """.trimIndent()
 
-            // Update message after 5 seconds
-            Handler(Looper.getMainLooper()).postDelayed({
-                homeViewModel.setStatus("Five seconds have passed.")
-            }, 5000)
+                val connection = URL(CAMERA_ENDPOINT).openConnection() as HttpURLConnection
+                connection.apply {
+                    requestMethod = "POST"
+                    setRequestProperty("Content-Type", "application/json")
+                    doOutput = true
+                }
+
+                connection.outputStream.use { os: OutputStream ->
+                    os.write(payload.toByteArray(Charsets.UTF_8))
+                }
+
+                if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+                    val response = BufferedReader(InputStreamReader(connection.inputStream)).use { it.readText() }
+                    val jsonResponse = JSONObject(response)
+                    val takePictureUrls = jsonResponse.optJSONArray("result")?.optJSONArray(5)
+                        ?.optJSONObject(0)?.optJSONArray("takePictureUrl")
+
+                    val newUrl = takePictureUrls?.let { urls ->
+                        (0 until urls.length()).asSequence()
+                            .map { urls.optString(it) }
+                            .firstOrNull { it.isNotEmpty() }
+                    }
+
+                    if (newUrl != null && newUrl != photoUrl) {
+                        photoUrl = newUrl
+                        readout("$photoUrl")
+                        saveImageToGallery(photoUrl!!)
+                    }
+                } else {
+                    readout("Error: ${connection.responseCode}")
+                }
+            } catch (e: Exception) {
+                readout("Error polling for photo: ${e.message}")
+            }
+            Thread.sleep(1000)
+        }
+    }
+
+    private fun saveImageToGallery(imageUrl: String) {
+        try {
+            val inputStream: InputStream = URL(imageUrl).openStream()
+            val contentValues = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, "AIris_${System.currentTimeMillis()}.jpg")
+                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_DCIM + "/AIrisUnprocessed")
+            }
+
+            val resolver = requireContext().contentResolver
+            val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+
+            uri?.let {
+                resolver.openOutputStream(it)?.use { outputStream ->
+                    inputStream.copyTo(outputStream)
+                }
+                readout("Image saved to gallery")
+            }
+        } catch (e: Exception) {
+            readout("Error saving image: ${e.message}")
         }
     }
 
